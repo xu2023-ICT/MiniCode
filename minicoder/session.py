@@ -1,0 +1,106 @@
+"""Session persistence - save and resume conversations.
+
+Claude Code maintains session state via QueryEngine (1295 lines).
+MiniCoder distills this to: JSON dump of messages + model config.
+"""
+
+import json
+import re
+import time
+import uuid
+from pathlib import Path
+
+SESSIONS_DIR = Path.home() / ".minicode" / "sessions"
+_SAFE_SESSION_RE = re.compile(r"[^A-Za-z0-9._-]+")
+_MAX_NAME_LEN = 40
+
+
+def _normalize_session_id(session_id: str | None) -> str:
+    if not session_id:
+        return _new_session_id()
+
+    name = session_id.strip().replace("\\", "/").split("/")[-1]
+    name = _SAFE_SESSION_RE.sub("-", name).strip(".-_")
+    return name or _new_session_id()
+
+
+def _new_session_id() -> str:
+    return f"session_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
+
+def _id_from_messages(messages: list[dict]) -> str:
+    last_user = ""
+    for m in reversed(messages):
+        if m.get("role") == "user" and m.get("content"):
+            last_user = m["content"]
+            break
+    if not last_user:
+        return _new_session_id()
+
+    text = " ".join(last_user.split())[:_MAX_NAME_LEN]
+    name = _SAFE_SESSION_RE.sub("-", text).strip("-")
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    return f"{name}_{ts}" if name else _new_session_id()
+
+
+def _session_path(session_id: str) -> Path:
+    path = (SESSIONS_DIR / f"{_normalize_session_id(session_id)}.json").resolve()
+    root = SESSIONS_DIR.resolve()
+    if root != path.parent:
+        raise ValueError("Invalid session id")
+    return path
+
+
+def save_session(messages: list[dict], model: str, session_id: str | None = None) -> str:
+    """Save conversation to disk. Returns the session ID."""
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+
+    session_id = _id_from_messages(messages) if session_id is None else _normalize_session_id(session_id)
+
+    data = {
+        "id": session_id,
+        "model": model,
+        "saved_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "messages": messages,
+    }
+
+    path = _session_path(session_id)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+    return session_id
+
+
+def load_session(session_id: str) -> tuple[list[dict], str] | None:
+    """Load a saved session. Returns (messages, model) or None."""
+    path = _session_path(session_id)
+    if not path.exists():
+        return None
+
+    data = json.loads(path.read_text())
+    return data["messages"], data["model"]
+
+
+def list_sessions() -> list[dict]:
+    """List available sessions, newest first."""
+    if not SESSIONS_DIR.exists():
+        return []
+
+    sessions = []
+    for f in sorted(SESSIONS_DIR.glob("*.json"), reverse=True):
+        try:
+            data = json.loads(f.read_text())
+            # grab first user message as preview
+            preview = ""
+            for m in data.get("messages", []):
+                if m.get("role") == "user" and m.get("content"):
+                    preview = m["content"][:80]
+                    break
+            sessions.append({
+                "id": data.get("id", f.stem),
+                "model": data.get("model", "?"),
+                "saved_at": data.get("saved_at", "?"),
+                "preview": preview,
+            })
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    return sessions[:20]  # cap at 20
