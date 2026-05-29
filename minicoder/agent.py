@@ -61,29 +61,15 @@ class Agent:
                 self.messages.append(resp.message)
                 return resp.content
 
-            # tool calls -> execute (parallel when multiple, like Claude Code's
-            # StreamingToolExecutor which runs independent tools concurrently)
             self.messages.append(resp.message)
 
-            if len(resp.tool_calls) == 1:
-                tc = resp.tool_calls[0]
-                if on_tool:
-                    on_tool(tc.name, tc.arguments)
-                result = self._exec_tool(tc)
+            results = self._exec_tools_parallel(resp.tool_calls, on_tool)
+            for tc, result in zip(resp.tool_calls, results):
                 self.messages.append({
                     "role": "tool",
                     "tool_call_id": tc.id,
                     "content": result,
                 })
-            else:
-                # parallel execution for multiple tool calls
-                results = self._exec_tools_parallel(resp.tool_calls, on_tool)
-                for tc, result in zip(resp.tool_calls, results):
-                    self.messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": result,
-                    })
 
             # compress if tool outputs are big
             self.context.maybe_compress(self.messages, self.llm)
@@ -109,6 +95,9 @@ class Agent:
         executing tools while the model is still generating.  We simplify to:
         when the model returns N tool calls at once, run them in parallel.
         """
+        # 需要区分读和写，这里直接并发容易造成问题；然后事实是区分非常困难，不适合在这里做。如果后面想拓展就得搞个并发安全，cc实现的是靠batch。并发安全的连续块编入同一个 batch，batch 内真正并发执行（`toolOrchestration.ts:152-176`，有并发上限）。遇到非并发安全的就开新 batch 串行执行。batch 之间严格顺序。
+        # 工具安全也是一点没做， 可以区分看S01
+        # 工具结果也没存
         for tc in tool_calls:
             if on_tool:
                 on_tool(tc.name, tc.arguments)

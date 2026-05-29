@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-
+# 明天尝试写一个web search的工具看看需要哪些参数
 class Tool(ABC):
     """Minimal tool interface. Subclass this to add new capabilities."""
 
@@ -25,3 +25,29 @@ class Tool(ABC):
                 "parameters": self.parameters,
             },
         }
+    
+"""
+  {
+      "type": "function", 固定
+      "function": {
+          "name": "get_weather",
+          "description": "获取指定城市的天气",
+          "parameters": {
+              "type": "object", @ 键值对
+              "properties": {
+                  "city": {
+                      "type": "string",
+                      "description": "城市名称，例如 Beijing"
+                  },
+                  "unit": {
+                      "type": "string",
+                      "enum": ["celsius", "fahrenheit"],
+                      "description": "温度单位"
+                  }
+              },
+              "required": ["city"],
+              "additionalProperties": False
+          },
+          "strict": True
+      }
+"""

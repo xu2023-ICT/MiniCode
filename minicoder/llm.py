@@ -126,6 +126,7 @@ class LLM:
                 for tc_delta in delta.tool_calls:
                     idx = tc_delta.index
                     if idx not in tc_map:
+                        # 这里的id是工具调用顺序
                         tc_map[idx] = {"id": "", "name": "", "args": ""}
                     if tc_delta.id:
                         tc_map[idx]["id"] = tc_delta.id

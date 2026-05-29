@@ -90,6 +90,7 @@ def list_sessions() -> list[dict]:
             data = json.loads(f.read_text())
             # grab first user message as preview
             preview = ""
+            # list last message to find which session user wants to resume
             for m in data.get("messages", []):
                 if m.get("role") == "user" and m.get("content"):
                     preview = m["content"][:80]
