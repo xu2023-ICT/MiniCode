@@ -10,7 +10,7 @@ import time
 import uuid
 from pathlib import Path
 
-SESSIONS_DIR = Path.home() / ".minicode" / "sessions"
+SESSIONS_DIR = Path.home() / ".minicoder" / "sessions"
 _SAFE_SESSION_RE = re.compile(r"[^A-Za-z0-9._-]+")
 _MAX_NAME_LEN = 40
 

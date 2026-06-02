@@ -1,19 +1,16 @@
-"""LLM provider layer - thin wrapper over OpenAI-compatible APIs.
-
-Since most providers (DeepSeek, Qwen, Kimi, GLM, Ollama, etc.) expose an
-OpenAI-compatible endpoint, we just use the openai SDK directly.  Switch
-provider by changing OPENAI_BASE_URL + OPENAI_API_KEY. That's it.
-
-For providers that are NOT OpenAI-compatible (AWS Bedrock, Google Vertex,
-etc.), use the LiteLLM backend which routes to 100+ providers through a
-single unified interface. Set CORECODER_PROVIDER=litellm.
+"""LLM provider layer - thin wrapper over DeepSeek API.
 """
 
 import json
 import time
 from dataclasses import dataclass, field
-
-from openai import OpenAI, APIError, RateLimitError, APITimeoutError, APIConnectionError
+from openai import (
+    OpenAI,
+    APIError,
+    RateLimitError,
+    APITimeoutError,
+    APIConnectionError,
+)
 
 
 @dataclass
@@ -66,6 +63,8 @@ class LLM:
     ):
         self.model = model
         self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self._api_error_type = APIError
+        self._retry_error_types = (RateLimitError, APITimeoutError, APIConnectionError)
         self.extra = kwargs  # temperature, max_tokens, etc.
         self.total_prompt_tokens = 0
         self.total_completion_tokens = 0
@@ -162,12 +161,12 @@ class LLM:
         for attempt in range(max_retries):
             try:
                 return self.client.chat.completions.create(**params)
-            except (RateLimitError, APITimeoutError, APIConnectionError) as e:
+            except self._retry_error_types:
                 if attempt == max_retries - 1:
                     raise
                 wait = 2 ** attempt
                 time.sleep(wait)
-            except APIError as e:
+            except self._api_error_type as e:
                 # 5xx = server error, retry; 4xx = client error, don't
                 if e.status_code and e.status_code >= 500 and attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
