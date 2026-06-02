@@ -78,7 +78,7 @@ class Agent:
 
     def _exec_tool(self, tc) -> str:
         """Execute a single tool call, returning the result string."""
-        tool = get_tool(tc.name)
+        tool = get_tool(tc.name, self.tools)
         if tool is None:
             return f"Error: unknown tool '{tc.name}'"
         try:
