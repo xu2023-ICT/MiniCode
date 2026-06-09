@@ -8,6 +8,7 @@ from .glob_tool import GlobTool
 from .grep import GrepTool
 from .agent import AgentTool
 from .ask_user import AskUserTool
+from .plan import UpdatePlanTool
 
 ALL_TOOLS = [
     BashTool(),
@@ -18,6 +19,7 @@ ALL_TOOLS = [
     GrepTool(),
     AgentTool(),
     AskUserTool(),
+    UpdatePlanTool(),
 ]
 
 

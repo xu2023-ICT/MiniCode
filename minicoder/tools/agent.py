@@ -45,8 +45,8 @@ class AgentTool(Tool):
             llm=parent.llm,
             tools=[
                 t for t in parent.tools
-                if t.name not in ("agent", "ask_user")
-            ],  # no recursive agents; sub-agents stay in the background
+                if t.name not in ("agent", "ask_user", "update_plan")
+            ],  # sub-agents stay in the background
             max_context_tokens=parent.context.max_tokens,
             max_rounds=20,
         )

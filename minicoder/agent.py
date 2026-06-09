@@ -14,8 +14,10 @@ from .llm import LLM
 from .tools import ALL_TOOLS, get_tool
 from .tools.base import Tool
 from .tools.agent import AgentTool
+from .tools.plan import UpdatePlanTool
 from .prompt import system_prompt
 from .context import ContextManager
+from .hooks import HookManager, default_hooks
 
 
 class Agent:
@@ -23,19 +25,24 @@ class Agent:
         self,
         llm: LLM,
         tools: list[Tool] | None = None,
+        hooks: HookManager | None = None,
         max_context_tokens: int = 128_000,
         max_rounds: int = 50,
     ):
         self.llm = llm
         self.tools = tools if tools is not None else ALL_TOOLS
+        self.hooks = hooks if hooks is not None else default_hooks()
         self.messages: list[dict] = []
+        self.plan: dict | None = None
         self.context = ContextManager(max_tokens=max_context_tokens)
         self.max_rounds = max_rounds
         self._system = system_prompt(self.tools)
 
-        # wire up sub-agent capability
+        # wire up tools that need access to this agent's runtime state
         for t in self.tools:
             if isinstance(t, AgentTool):
+                t._parent_agent = self
+            if isinstance(t, UpdatePlanTool):
                 t._parent_agent = self
 
     def _full_messages(self) -> list[dict]:
@@ -82,11 +89,12 @@ class Agent:
         if tool is None:
             return f"Error: unknown tool '{tc.name}'"
         try:
-            return tool.execute(**tc.arguments)
+            result = tool.execute(**tc.arguments)
         except TypeError as e:
-            return f"Error: bad arguments for {tc.name}: {e}"
+            result = f"Error: bad arguments for {tc.name}: {e}"
         except Exception as e:
-            return f"Error executing {tc.name}: {e}"
+            result = f"Error executing {tc.name}: {e}"
+        return result
 
     def _exec_tools_parallel(self, tool_calls, on_tool=None) -> list[str]:
         """Run multiple tool calls concurrently using threads.
@@ -95,17 +103,29 @@ class Agent:
         executing tools while the model is still generating.  We simplify to:
         when the model returns N tool calls at once, run them in parallel.
         """
-        # 需要区分读和写，这里直接并发容易造成问题；然后事实是区分非常困难，不适合在这里做。如果后面想拓展就得搞个并发安全，cc实现的是靠batch。并发安全的连续块编入同一个 batch，batch 内真正并发执行（`toolOrchestration.ts:152-176`，有并发上限）。遇到非并发安全的就开新 batch 串行执行。batch 之间严格顺序。
-        # 工具安全也是一点没做， 可以区分看S01
-        # 工具结果也没存
-        for tc in tool_calls:
+        # Plan updates must become visible before the real work in the same
+        # model turn, so execute them first and keep other tools parallel.
+        plan_calls = [(i, tc) for i, tc in enumerate(tool_calls) if tc.name == "update_plan"]
+        other_calls = [(i, tc) for i, tc in enumerate(tool_calls) if tc.name != "update_plan"]
+        results: list[str | None] = [None] * len(tool_calls)
+
+        for index, tc in plan_calls:
+            if on_tool:
+                on_tool(tc.name, tc.arguments)
+            results[index] = self._exec_tool(tc)
+
+        for _, tc in other_calls:
             if on_tool:
                 on_tool(tc.name, tc.arguments)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
-            futures = [pool.submit(self._exec_tool, tc) for tc in tool_calls]
-            return [f.result() for f in futures]
+            futures = [(index, pool.submit(self._exec_tool, tc)) for index, tc in other_calls]
+            for index, future in futures:
+                results[index] = future.result()
+
+        return [result or "" for result in results]
 
     def reset(self):
         """Clear conversation history."""
         self.messages.clear()
+        self.plan = None

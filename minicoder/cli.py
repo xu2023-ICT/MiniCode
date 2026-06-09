@@ -6,6 +6,7 @@ import argparse
 
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.markup import escape
 from rich.panel import Panel
 from prompt_toolkit import prompt as pt_prompt
 from prompt_toolkit.history import FileHistory
@@ -188,6 +189,9 @@ def _repl(agent: Agent, config: Config):
             print(tok, end="", flush=True)
 
         def on_tool(name, kwargs):
+            if name == "update_plan":
+                _render_plan(kwargs)
+                return
             console.print(f"\n[dim]> {name}({_brief(kwargs)})[/dim]")
 
         try:
@@ -228,3 +232,33 @@ def _show_help():
 def _brief(kwargs: dict, maxlen: int = 80) -> str:
     s = ", ".join(f"{k}={repr(v)[:40]}" for k, v in kwargs.items())
     return s[:maxlen] + ("..." if len(s) > maxlen else "")
+
+
+def _render_plan(kwargs: dict):
+    plan = kwargs.get("plan", [])
+    explanation = kwargs.get("explanation")
+
+    lines = []
+    if isinstance(explanation, str) and explanation.strip():
+        lines.append(f"[dim]{escape(explanation.strip())}[/dim]")
+
+    if not isinstance(plan, list) or not plan:
+        lines.append("[dim]No active plan.[/dim]")
+    else:
+        for item in plan:
+            if not isinstance(item, dict):
+                continue
+            step = str(item.get("step", "")).strip()
+            status = item.get("status")
+            if not step:
+                continue
+            marker = {
+                "pending": "[ ]",
+                "in_progress": "[>]",
+                "completed": "[x]",
+            }.get(status, "[ ]")
+            style = "green" if status == "completed" else "yellow" if status == "in_progress" else "dim"
+            lines.append(f"[{style}]{escape(marker)}[/] {escape(step)}")
+
+    console.print()
+    console.print(Panel("\n".join(lines), title="Plan", border_style="cyan"))
