@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "minicode"
 version = "0.3.0"
-description = "Minimal AI coding agent (~1400 LoC) inspired by Claude Code. Works with any LLM. (formerly NanoCoder)"
+description = "Minimal AI coding agent inspired by Claude Code. Works with any LLM."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -32,11 +32,11 @@ dependencies = [
     "rich>=13.0",
     "prompt_toolkit>=3.0",
     "python-dotenv>=1.0",
-    "litellm>=1.85.1",
+    "pytest>=9.0.3",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["minicoder", "corecoder"]
+packages = ["minicoder"]
 
 [project.optional-dependencies]
 litellm = ["litellm>=1.60.0,<2.0.0"]
@@ -44,9 +44,9 @@ dev = ["pytest>=7.0"]
 
 [project.scripts]
 minicoder = "minicoder.cli:main"
-minicode = "corecoder.cli:main"
+minicode = "minicoder.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/he-yufeng/CoreCoder"
-Repository = "https://github.com/he-yufeng/CoreCoder"
-Issues = "https://github.com/he-yufeng/CoreCoder/issues"
+Homepage = "https://github.com/xu2023-ICT/MiniCode"
+Repository = "https://github.com/xu2023-ICT/MiniCode"
+Issues = "https://github.com/xu2023-ICT/MiniCode/issues"

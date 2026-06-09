@@ -160,7 +160,7 @@ def _repl(agent: Agent, config: Config):
         if user_input == "/save":
             sid = save_session(agent.messages, config.model)
             console.print(f"[green]Session saved: {sid}[/green]")
-            console.print(f"Resume with: corecoder -r {sid}")
+            console.print(f"Resume with: minicode -r {sid}")
             continue
         if user_input == "/diff":
             from .tools.edit import _changed_files
