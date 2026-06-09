@@ -3,6 +3,7 @@
 import sys
 import os
 import argparse
+import importlib.metadata
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -180,6 +181,20 @@ def _repl(agent: Agent, config: Config):
                 for s in sessions:
                     console.print(f"  {s['preview']}  [dim]{s['saved_at']} · {s['model']} · {s['id']}[/dim]")
             continue
+        if user_input == "/version":
+            pkg_version = __version__
+            try:
+                installed_version = importlib.metadata.version("minicode")
+            except importlib.metadata.PackageNotFoundError:
+                installed_version = "[dim]not installed[/dim]"
+            console.print(Panel(
+                f"[bold]Package version:[/bold]  [cyan]{pkg_version}[/cyan]\n"
+                f"[bold]Installed version:[/bold] [cyan]{installed_version}[/cyan]\n"
+                f"[bold]Current model:[/bold]    [green]{config.model}[/green]",
+                title="Version",
+                border_style="blue",
+            ))
+            continue
 
         # call the agent
         streamed: list[str] = []
@@ -219,6 +234,7 @@ def _show_help():
         "  /diff          Show files modified this session\n"
         "  /save          Save session to disk\n"
         "  /sessions      List saved sessions\n"
+        "  /version  Show package version, installed version, and current model\n"
         "  quit           Exit MiniCoder\n"
         "\n"
         "[bold]Input:[/bold]\n"
