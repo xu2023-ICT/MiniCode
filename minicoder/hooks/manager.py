@@ -52,4 +52,8 @@ class HookManager:
 
 
 def default_hooks() -> HookManager:
-    return HookManager()
+    from .skill_prompt import inject_available_skills
+
+    hooks = HookManager()
+    hooks.register("UserPromptSubmit", inject_available_skills)
+    return hooks

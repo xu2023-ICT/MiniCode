@@ -9,6 +9,7 @@ from .grep import GrepTool
 from .agent import AgentTool
 from .ask_user import AskUserTool
 from .plan import UpdatePlanTool
+from .skill import ReadSkillTool
 
 ALL_TOOLS = [
     BashTool(),
@@ -20,6 +21,7 @@ ALL_TOOLS = [
     AgentTool(),
     AskUserTool(),
     UpdatePlanTool(),
+    ReadSkillTool(),
 ]
 
 

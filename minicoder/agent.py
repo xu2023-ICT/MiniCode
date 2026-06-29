@@ -17,7 +17,7 @@ from .tools.agent import AgentTool
 from .tools.plan import UpdatePlanTool
 from .prompt import system_prompt
 from .context import ContextManager
-from .hooks import HookManager, default_hooks
+from .hooks import HookEvent, HookManager, default_hooks
 
 
 class Agent:
@@ -36,7 +36,8 @@ class Agent:
         self.plan: dict | None = None
         self.context = ContextManager(max_tokens=max_context_tokens)
         self.max_rounds = max_rounds
-        self._system = system_prompt(self.tools)
+        self._base_system = system_prompt(self.tools)
+        self._system_additions: list[str] = []
 
         # wire up tools that need access to this agent's runtime state
         for t in self.tools:
@@ -46,13 +47,24 @@ class Agent:
                 t._parent_agent = self
 
     def _full_messages(self) -> list[dict]:
-        return [{"role": "system", "content": self._system}] + self.messages
+        system = self._base_system
+        if self._system_additions:
+            system += "\n\n" + "\n\n".join(self._system_additions)
+        return [{"role": "system", "content": system}] + self.messages
 
     def _tool_schemas(self) -> list[dict]:
         return [t.schema() for t in self.tools]
 
     def chat(self, user_input: str, on_token=None, on_tool=None) -> str:
         """Process one user message. May involve multiple LLM/tool rounds."""
+        event = HookEvent(data={"user_input": user_input, "system_additions": []})
+        self.hooks.trigger("UserPromptSubmit", event)
+        additions = event.data.get("system_additions", [])
+        self._system_additions = [
+            addition for addition in additions
+            if isinstance(addition, str) and addition.strip()
+        ]
+
         self.messages.append({"role": "user", "content": user_input})
         self.context.maybe_compress(self.messages, self.llm)
 
